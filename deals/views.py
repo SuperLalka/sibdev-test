@@ -1,61 +1,62 @@
 import csv
 import io
+import logging
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from rest_framework import status
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.views import APIView
 
 from .models import Deal, Gem
-from .serializers import FileUploadSerializer, DealSerializer
+from .serializers import FileUploadSerializer, BestBuyersSerializer
 
 
-class DealsViewSet(ModelViewSet):
-    serializer_class = DealSerializer
-    queryset = Deal.objects.all()
+logger = logging.getLogger(__name__)
 
-    def get_serializer(self, *args, **kwargs):
-        if self.action == 'create':
-            serializer_class = FileUploadSerializer
-        else:
-            serializer_class = self.get_serializer_class()
-        kwargs.setdefault('context', self.get_serializer_context())
-        return serializer_class(*args, **kwargs)
 
-    def list(self, request, *args, **kwargs):
-        best_buyers = Deal.objects.values('customer').annotate(
-            spent_money=Sum('total')).order_by('-spent_money')[:5]
-        serializer = self.get_serializer(best_buyers, many=True)
+class DealsViewAPI(APIView):
+
+    def get(self, request):
+        best_buyers = (Deal.objects.values('customer')
+                           .annotate(spent_money=Sum('total'))
+                           .order_by('-spent_money')[:5])
+        serializer = BestBuyersSerializer(best_buyers, many=True)
         return Response(serializer.data)
 
-    def create(self, request, *args, **kwargs):
+    def post(self, request):
         if 'file' not in request.data:
             raise ParseError("Empty content")
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer = FileUploadSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        file = serializer.initial_data['file']
-        decoded_file = file.read().decode()
-        io_string = io.StringIO(decoded_file)
-        reader = csv.reader(io_string)
+            file = serializer.initial_data['file']
+            decoded_file = file.read().decode()
+            io_string = io.StringIO(decoded_file)
+            reader = csv.reader(io_string)
 
-        fieldnames = []
-        for row in reader:
-            if not fieldnames:
-                fieldnames = row
-                print(fieldnames)
-                continue
-            new_deal, created = Deal.objects.get_or_create(customer=User.objects.get_or_create(username=row[0])[0],
-                                                           item=Gem.objects.get_or_create(name=row[1])[0],
-                                                           total=row[2],
-                                                           quantity=row[3],
-                                                           date=row[4])
-            if created:
-                print(f'{row} has been entered into the database as {new_deal}')
-            else:
-                print(f'{row} already exists as {new_deal}')
+            fieldnames = []
+            for row in reader:
+                if not fieldnames:
+                    fieldnames = row
+                    continue
 
-        return Response("OK", status=status.HTTP_204_NO_CONTENT)
+                customer, _ = User.objects.get_or_create(username=row[0])
+                item, _ = Gem.objects.get_or_create(name=row[1])
+
+                new_deal, created = Deal.objects.get_or_create(
+                    customer=customer, item=item, total=row[2], quantity=row[3], date=row[4]
+                )
+
+                if created:
+                    logger.info(f'{row} has been entered into the database as {new_deal}')
+                else:
+                    logger.info(f'{row} already exists as {new_deal}')
+
+            return Response("OK", status=status.HTTP_204_NO_CONTENT)
+        except ValidationError:
+            return Response("Error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
