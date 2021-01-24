@@ -10,7 +10,7 @@ class FileUploadSerializer(serializers.Serializer):
     csv_file = serializers.FileField(allow_empty_file=False, read_only=True)
 
 
-class DealSerializer(serializers.Serializer):
+class BestBuyersSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
