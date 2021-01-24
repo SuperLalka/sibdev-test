@@ -1,0 +1,24 @@
+version: '3.7'
+services:
+
+  web:
+    build:
+      context: sibdev_test
+      dockerfile: Dockerfile
+    command: gunicorn sibdev_test.wsgi:application --bind 0.0.0.0:8000
+    ports:
+      - 8000:8000
+    env_file:
+      - .environment
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13.0-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - .environment.db
+
+volumes:
+  postgres_data:
