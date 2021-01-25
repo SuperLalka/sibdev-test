@@ -1,6 +1,7 @@
 import random
 
 from django.test import TestCase
+from memoize import Memoizer
 from rest_framework.test import APIClient
 
 from deals.tests.factories import (
@@ -15,8 +16,10 @@ class DealsApiTestCase(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.memoizer = Memoizer()
 
     def test_get_empty_deals(self):
+        self.memoizer.clear()
         response = self.client.get('/deals/', follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 0)
@@ -83,3 +86,24 @@ class DealsApiTestCase(TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertEqual(Deal.objects.exists(), False)
+
+    def test_memoization(self):
+        file_name = "deals_for_test.csv"
+
+        with open("deals/tests/test_files/" + file_name) as fp:
+            self.client.post(
+                '/deals/',
+                data=fp.read(),
+                content_type='text/csv',
+                HTTP_CONTENT_DISPOSITION=f"attachment; filename={file_name}",
+            )
+
+        response = self.client.get('/deals/', follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 5)
+
+        Deal.objects.all().delete()
+
+        response = self.client.get('/deals/', follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 5)
