@@ -6,10 +6,6 @@ from rest_framework import serializers
 from .models import Deal, Gem
 
 
-class FileUploadSerializer(serializers.Serializer):
-    csv_file = serializers.FileField(allow_empty_file=False, read_only=True)
-
-
 class BestBuyersSerializer(serializers.Serializer):
 
     def to_representation(self, instance):

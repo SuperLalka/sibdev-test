@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Deal, Gem
-from .serializers import FileUploadSerializer, BestBuyersSerializer
+from .serializers import BestBuyersSerializer
 
 
 logger = logging.getLogger(__name__)
@@ -30,30 +30,26 @@ class DealsViewAPI(APIView):
         if 'file' not in request.data:
             raise ParseError("Empty content")
 
-        serializer = FileUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        file = serializer.initial_data['file']
+        file = request.data['file']
         decoded_file = file.read().decode()
         io_string = io.StringIO(decoded_file)
         reader = csv.reader(io_string)
 
-        fieldnames = []
+        next(reader)
         for row in reader:
-            if not fieldnames:
-                fieldnames = row
-                continue
+            try:
+                customer, _ = User.objects.get_or_create(username=row[0])
+                item, _ = Gem.objects.get_or_create(name=row[1])
 
-            customer, _ = User.objects.get_or_create(username=row[0])
-            item, _ = Gem.objects.get_or_create(name=row[1])
+                new_deal, created = Deal.objects.get_or_create(
+                    customer=customer, item=item, total=row[2], quantity=row[3], date=row[4]
+                )
 
-            new_deal, created = Deal.objects.get_or_create(
-                customer=customer, item=item, total=row[2], quantity=row[3], date=row[4]
-            )
-
-            if created:
-                logger.info(f'{row} has been entered into the database as {new_deal}')
-            else:
-                logger.info(f'{row} already exists as {new_deal}')
+                if created:
+                    logger.info(f'{row} has been entered into the database as {new_deal}')
+                else:
+                    logger.info(f'{row} already exists as {new_deal}')
+            except LookupError:
+                return Response("Error", status=status.HTTP_400_BAD_REQUEST)
 
         return Response("OK", status=status.HTTP_204_NO_CONTENT)
