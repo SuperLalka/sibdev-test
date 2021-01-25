@@ -30,33 +30,30 @@ class DealsViewAPI(APIView):
         if 'file' not in request.data:
             raise ParseError("Empty content")
 
-        try:
-            serializer = FileUploadSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-            file = serializer.initial_data['file']
-            decoded_file = file.read().decode()
-            io_string = io.StringIO(decoded_file)
-            reader = csv.reader(io_string)
+        file = serializer.initial_data['file']
+        decoded_file = file.read().decode()
+        io_string = io.StringIO(decoded_file)
+        reader = csv.reader(io_string)
 
-            fieldnames = []
-            for row in reader:
-                if not fieldnames:
-                    fieldnames = row
-                    continue
+        fieldnames = []
+        for row in reader:
+            if not fieldnames:
+                fieldnames = row
+                continue
 
-                customer, _ = User.objects.get_or_create(username=row[0])
-                item, _ = Gem.objects.get_or_create(name=row[1])
+            customer, _ = User.objects.get_or_create(username=row[0])
+            item, _ = Gem.objects.get_or_create(name=row[1])
 
-                new_deal, created = Deal.objects.get_or_create(
-                    customer=customer, item=item, total=row[2], quantity=row[3], date=row[4]
-                )
+            new_deal, created = Deal.objects.get_or_create(
+                customer=customer, item=item, total=row[2], quantity=row[3], date=row[4]
+            )
 
-                if created:
-                    logger.info(f'{row} has been entered into the database as {new_deal}')
-                else:
-                    logger.info(f'{row} already exists as {new_deal}')
+            if created:
+                logger.info(f'{row} has been entered into the database as {new_deal}')
+            else:
+                logger.info(f'{row} already exists as {new_deal}')
 
-            return Response("OK", status=status.HTTP_204_NO_CONTENT)
-        except ValidationError:
-            return Response("Error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response("OK", status=status.HTTP_204_NO_CONTENT)
