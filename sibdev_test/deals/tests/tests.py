@@ -8,6 +8,8 @@ from deals.tests.factories import (
     UsersFactory,
 )
 
+from deals.models import Deal
+
 
 class DealsApiTestCase(TestCase):
 
@@ -25,3 +27,19 @@ class DealsApiTestCase(TestCase):
         response = self.client.get('/deals/', follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 5)
+
+    def test_post_file(self):
+        file_name = "deals_for_test.csv"
+
+        with open("deals/tests/" + file_name) as fp:
+            response = self.client.post(
+                '/deals/',
+                data=fp.read(),
+                content_type='text/csv',
+                HTTP_CONTENT_DISPOSITION=f"attachment; filename={file_name}",
+                CONTENT_TYPE='text/csv',
+            )
+
+        self.assertEqual(response.status_code, 204)
+        deals = Deal.objects.exists()
+        self.assertEqual(deals, True)
